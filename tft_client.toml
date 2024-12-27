@@ -1,0 +1,4 @@
+#Configuration file for ft_client
+
+server_address = "127.0.0.1"
+port_number = "12345"
