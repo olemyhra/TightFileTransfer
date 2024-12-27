@@ -13,3 +13,4 @@ target_compile_options(tft_server PRIVATE -Wall -Werror -O2 -g3 -fpic -std=c17 -
 
 target_link_libraries(tft_client PRIVATE stoml.so)
 target_link_libraries(tft_server PRIVATE stoml.so)
+target_link_libraries(tft_server PRIVATE pthread.so)

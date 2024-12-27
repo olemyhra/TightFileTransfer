@@ -84,7 +84,6 @@ int main(int argc, char **argv)
 		server_address.sin_family = AF_INET;
 		server_address.sin_port = htons(server_port_nr);
 
-		printf("Connecting to server.\n");
 
 		if (connect(client_socket, (struct sockaddr *) &server_address, 
 			sizeof(server_address)) < 0) {
