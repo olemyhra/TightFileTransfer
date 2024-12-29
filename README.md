@@ -1,7 +1,7 @@
 # TightFileTransfer
 File transfer over a single network socket.
 
-# Overview
+## Overview
 I am using this project to learn about network programming. I have implemented a client and a server.
 The client is run from the terminal window and you have to provide an argument with the filename of 
 the file you wish to send to the server.
