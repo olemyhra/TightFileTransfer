@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "queue.h"
 
 #define MAX_TOML_ENTRIES 5
 #define MAX_TOML_VALUE_LENGTH 50
@@ -17,11 +18,14 @@
 #define RECIEVE_BUFFER_SIZE 1024
 #define MAX_CLIENT_QUEUE 10
 #define MAX_RECIEVE_FILENAME_LENGTH 50
+#define THREAD_POOL 10
 
 void handler(int sig, siginfo_t *si, void *unused);
-void *recieve_data(void *connected_socket);
+void *recieve_data(void *unused);
 int server_socket = 0;
 char *recieve_buffer = NULL;
+struct queue *client_queue = NULL;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 int main(void)
 {
@@ -34,13 +38,19 @@ int main(void)
 	int client_address_length = 0;
 	struct sockaddr_in server_address = {0};
 	struct sigaction sa;
-	pthread_t recieve_thread;
+	pthread_t recieve_threads[THREAD_POOL];
 
 	sa.sa_flags = SA_SIGINFO;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_sigaction = handler;	
 	if (sigaction(SIGINT, &sa, NULL) == -1) {
 		fprintf(stderr, "Unable to set signal action!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	client_queue = create_queue();
+	if (client_queue == NULL) {
+		fprintf(stderr, "Unable to create queue data structure!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -67,7 +77,7 @@ int main(void)
 
 	key = stoml_search(configuration, MAX_TOML_ENTRIES, "port_number");
 	if (key == NULL) {
-		fprintf(stderr, "Unable to retrieve value for port number from the toml file!\n");
+		fprintf(stderr, "Cannot retrieve value for port number from the toml file!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -84,10 +94,14 @@ int main(void)
 	server_address.sin_addr.s_addr = htons(INADDR_ANY);
 	server_address.sin_port = htons(server_port);
 
-	if (bind(server_socket, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
+	if (bind(server_socket, (struct sockaddr *) &server_address,
+		sizeof(server_address)) < 0) {
 		fprintf(stderr, "Unable to bind address to socket!\n");
 		exit(EXIT_FAILURE);
 	}
+
+	for (int i=0;i<THREAD_POOL;i++)
+		pthread_create(&recieve_threads[i], NULL, recieve_data, (void *) NULL);
 
 	listen(server_socket, MAX_CLIENT_QUEUE);
 
@@ -102,8 +116,7 @@ int main(void)
 			fprintf(stderr, "Failed to accept client connection!\n");
 			exit(EXIT_FAILURE);
 		}
-	
-		pthread_create(&recieve_thread, NULL, recieve_data, (void *) &client_socket);
+		enqueue(client_queue, client_socket);		
 	}
 
 	return EXIT_SUCCESS;
@@ -120,68 +133,76 @@ void handler(int sig, siginfo_t *si, void *unused) {
 	exit(EXIT_SUCCESS);
 }
 
-void *recieve_data(void *connected_socket) {
+void *recieve_data(void *unused) {
 	bool filename_recieved = false;
 	char recieved_filename[MAX_RECIEVE_FILENAME_LENGTH];
 	FILE *recieved_file = NULL;
 	int client_recieved_data_length = -1;
-	int client_socket = *((int *) connected_socket);
+	int client_socket = 0;
 
-	memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
+	while (1) {
 		
-	while ((client_recieved_data_length= recv(client_socket, 
-		recieve_buffer, RECIEVE_BUFFER_SIZE, 0)) != 0) {
-
-		if (client_recieved_data_length < 0) {
-			fprintf(stderr, "Recieving data from client failed!\n");
-			exit(EXIT_FAILURE);
-		}
-	
+		if(!queue_empty(client_queue)) {
+			pthread_mutex_lock(&lock);
+			client_socket = dequeue(client_queue);
 			
-		if (!filename_recieved) {
-			strncpy(recieved_filename, 
-				recieve_buffer, 
-				client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH
-				? MAX_RECIEVE_FILENAME_LENGTH
-				: client_recieved_data_length);
+			printf("Client socket: %d\n", client_socket);
+			memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
+		
+			while ((client_recieved_data_length= recv(client_socket, 
+				recieve_buffer, RECIEVE_BUFFER_SIZE, 0)) != 0) {
 
-			filename_recieved = true;
-			
-			recieved_file = fopen("test", "w");
-			if (recieved_filename == NULL) {
-				fprintf(stderr, "Unable to create file %s!\n", 
-					recieved_filename);
-				exit(EXIT_FAILURE);
-			}
-				
-			if (client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH) {
-				if ((fwrite(&(recieve_buffer[MAX_RECIEVE_FILENAME_LENGTH]),
-					sizeof(char),client_recieved_data_length
-					 - MAX_RECIEVE_FILENAME_LENGTH,
-					recieved_file)) == 0) {
-					fprintf(stderr, "Unable to create and  write to file %s!\n",
-					recieved_filename);
+				if (client_recieved_data_length < 0) {
+					fprintf(stderr, "Recieving data from client failed!\n");
 					exit(EXIT_FAILURE);
 				}
-			}
-			continue;
-		}
+	
 			
-		if (fwrite(recieve_buffer, sizeof(char), client_recieved_data_length, 
-			recieved_file) == 0) {
-			fprintf(stderr, "Unable to write to file %s!\n", 
-				recieved_filename);
-			exit(EXIT_FAILURE);
-		}	
+				if (!filename_recieved) {
+					strncpy(recieved_filename, 
+						recieve_buffer, 
+						client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH
+						? MAX_RECIEVE_FILENAME_LENGTH
+						: client_recieved_data_length);
+
+					filename_recieved = true;
+			
+					recieved_file = fopen("test", "w");
+					if (recieved_filename == NULL) {
+						fprintf(stderr, "Unable to create file %s!\n", 
+							recieved_filename);
+						exit(EXIT_FAILURE);
+					}
+				
+					if (client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH) {
+						if ((fwrite(&(recieve_buffer[MAX_RECIEVE_FILENAME_LENGTH]),
+							sizeof(char),client_recieved_data_length
+							 - MAX_RECIEVE_FILENAME_LENGTH,
+							recieved_file)) == 0) {
+							fprintf(stderr, "Unable to create and  write to file %s!\n",
+							recieved_filename);
+							exit(EXIT_FAILURE);
+						}
+					}
+					continue;
+				}
+			
+				if (fwrite(recieve_buffer, sizeof(char), client_recieved_data_length, 
+					recieved_file) == 0) {
+					fprintf(stderr, "Unable to write to file %s!\n", 
+						recieved_filename);
+					exit(EXIT_FAILURE);
+				}	
+			}
+
+			close(client_socket);
+			memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
+			filename_recieved = false;
+			fclose(recieved_file);
+			pthread_mutex_unlock(&lock);
+		}
 	}
 
-	close(client_socket);
-	memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
-	filename_recieved = false;
-	fclose(recieved_file);
-
 	return NULL;
-	
-
 }				
 
