@@ -116,7 +116,9 @@ int main(void)
 			fprintf(stderr, "Failed to accept client connection!\n");
 			exit(EXIT_FAILURE);
 		}
+		pthread_mutex_lock(&lock);
 		enqueue(client_queue, client_socket);		
+		pthread_mutex_unlock(&lock);
 	}
 
 	return EXIT_SUCCESS;
@@ -141,66 +143,67 @@ void *recieve_data(void *unused) {
 	int client_socket = 0;
 
 	while (1) {
-		
-		if(!queue_empty(client_queue)) {
-			pthread_mutex_lock(&lock);
-			client_socket = dequeue(client_queue);
-			
-			printf("Client socket: %d\n", client_socket);
-			memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
-		
-			while ((client_recieved_data_length= recv(client_socket, 
-				recieve_buffer, RECIEVE_BUFFER_SIZE, 0)) != 0) {
 
-				if (client_recieved_data_length < 0) {
-					fprintf(stderr, "Recieving data from client failed!\n");
-					exit(EXIT_FAILURE);
-				}
+		pthread_mutex_lock(&lock);		
+		client_socket = dequeue(client_queue);
+		pthread_mutex_unlock(&lock);
+	
+		if (client_socket == 0)
+			continue;
+			
+		memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
+		
+		while ((client_recieved_data_length= recv(client_socket, 
+			recieve_buffer, RECIEVE_BUFFER_SIZE, 0)) != 0) {
+
+			if (client_recieved_data_length < 0) {
+				fprintf(stderr, "Recieving data from client failed!\n");
+				exit(EXIT_FAILURE);
+			}
 	
 			
-				if (!filename_recieved) {
-					strncpy(recieved_filename, 
-						recieve_buffer, 
-						client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH
-						? MAX_RECIEVE_FILENAME_LENGTH
-						: client_recieved_data_length);
+			if (!filename_recieved) {
+				strncpy(recieved_filename, 
+					recieve_buffer, 
+					client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH
+					? MAX_RECIEVE_FILENAME_LENGTH
+					: client_recieved_data_length);
 
-					filename_recieved = true;
-			
-					recieved_file = fopen("test", "w");
-					if (recieved_filename == NULL) {
-						fprintf(stderr, "Unable to create file %s!\n", 
-							recieved_filename);
-						exit(EXIT_FAILURE);
-					}
-				
-					if (client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH) {
-						if ((fwrite(&(recieve_buffer[MAX_RECIEVE_FILENAME_LENGTH]),
-							sizeof(char),client_recieved_data_length
-							 - MAX_RECIEVE_FILENAME_LENGTH,
-							recieved_file)) == 0) {
-							fprintf(stderr, "Unable to create and  write to file %s!\n",
-							recieved_filename);
-							exit(EXIT_FAILURE);
-						}
-					}
-					continue;
-				}
-			
-				if (fwrite(recieve_buffer, sizeof(char), client_recieved_data_length, 
-					recieved_file) == 0) {
-					fprintf(stderr, "Unable to write to file %s!\n", 
+				filename_recieved = true;
+		
+				recieved_file = fopen("test", "w");
+				if (recieved_filename == NULL) {
+					fprintf(stderr, "Unable to create file %s!\n", 
 						recieved_filename);
 					exit(EXIT_FAILURE);
-				}	
+				}
+				
+				if (client_recieved_data_length > MAX_RECIEVE_FILENAME_LENGTH) {
+					if ((fwrite(&(recieve_buffer[MAX_RECIEVE_FILENAME_LENGTH]),
+						sizeof(char),client_recieved_data_length
+						 - MAX_RECIEVE_FILENAME_LENGTH,
+						recieved_file)) == 0) {
+						fprintf(stderr, "Unable to create and  write to file %s!\n",
+						recieved_filename);
+						exit(EXIT_FAILURE);
+					}
+				}
+				continue;
 			}
-
-			close(client_socket);
-			memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
-			filename_recieved = false;
-			fclose(recieved_file);
-			pthread_mutex_unlock(&lock);
+			
+			if (fwrite(recieve_buffer, sizeof(char), client_recieved_data_length, 
+				recieved_file) == 0) {
+				fprintf(stderr, "Unable to write to file %s!\n", 
+					recieved_filename);
+				exit(EXIT_FAILURE);
+			}	
 		}
+
+		close(client_socket);
+		memset(recieved_filename, 0, sizeof(char) * MAX_RECIEVE_FILENAME_LENGTH);
+		filename_recieved = false;
+		fclose(recieved_file);
+	
 	}
 
 	return NULL;

@@ -35,8 +35,9 @@ int dequeue(struct queue *q) {
 	struct client *tmp_client = NULL;
 	int client_socket = 0;
 	
-	if (queue_empty(q))	
+	if (queue_empty(q))
 		return 0;
+	
 
 	tmp_client = q->head;
 	q->head = q->head->next;
