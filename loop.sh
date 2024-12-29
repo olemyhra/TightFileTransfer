@@ -6,4 +6,7 @@ do
 	./tft_client test.txt
 	end_time=`date +%s`
 	echo run time is `expr $end_time - $start_time`
+	total=`expr $total + $end_time - $start_time`	
 done
+
+echo total time is $total

@@ -104,7 +104,6 @@ int main(void)
 		}
 	
 		pthread_create(&recieve_thread, NULL, recieve_data, (void *) &client_socket);
-	//	recieve_data((void *) &client_socket);
 	}
 
 	return EXIT_SUCCESS;
