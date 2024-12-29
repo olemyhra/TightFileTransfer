@@ -23,5 +23,5 @@ This is the multi_thread branch.
 
 ##Performence improvements:
 
-Branch single_thread:  49 seconds
-Branch muliti_thread:  13 seconds 
+-Branch single_thread:  49 seconds
+-Branch muliti_thread:  13 seconds 
