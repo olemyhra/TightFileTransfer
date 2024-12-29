@@ -1,7 +1,7 @@
 # TightFileTransfer
 File transfer over a single network socket.
 
-#Overview
+# Overview
 I am using this project to learn about network programming. I have implemented a client and a server.
 The client is run from the terminal window and you have to provide an argument with the filename of 
 the file you wish to send to the server.
@@ -21,7 +21,7 @@ I then improved my server to use threads. Every connection is handled by a new t
 data is recieved the thread will die on the return of the data handling function.
 This is the multi_thread branch.
 
-##Performence improvements:
+## Performence improvements:
 
 - Branch single_thread:  49 seconds
 - Branch muliti_thread:  13 seconds 
