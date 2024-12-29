@@ -6,7 +6,8 @@ I am using this project to learn about network programming. I have implemented a
 The client is run from the terminal window and you have to provide an argument with the filename of 
 the file you wish to send to the server.
 The server is then listening for connectiond and when the client connects it recives the filename
-and the stores the file in it's run directory.
+and the stores the file in it's run directory. I am using my stoml library for reading settings from
+a toml file.
 
 I have then created some test data. There are several files that I have used, but ended up writing a bash script
 to produce a large text file which is then used as the baseline. The batch file is called create_data.sh.
