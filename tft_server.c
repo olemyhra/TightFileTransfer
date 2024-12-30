@@ -16,7 +16,7 @@
 #define MAX_TOML_VALUE_LENGTH 50
 #define NULL_TERM_CHAR_SIZE 1
 #define RECIEVE_BUFFER_SIZE 1024
-#define MAX_CLIENT_QUEUE 10
+#define MAX_CLIENT_QUEUE 50
 #define MAX_RECIEVE_FILENAME_LENGTH 50
 #define THREAD_POOL 10
 
@@ -26,6 +26,7 @@ int server_socket = 0;
 char *recieve_buffer = NULL;
 struct queue *client_queue = NULL;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t thread_trigger = PTHREAD_COND_INITIALIZER;
 
 int main(void)
 {
@@ -117,7 +118,8 @@ int main(void)
 			exit(EXIT_FAILURE);
 		}
 		pthread_mutex_lock(&lock);
-		enqueue(client_queue, client_socket);		
+		enqueue(client_queue, client_socket);
+		pthread_cond_signal(&thread_trigger);
 		pthread_mutex_unlock(&lock);
 	}
 
@@ -144,8 +146,13 @@ void *recieve_data(void *unused) {
 
 	while (1) {
 
-		pthread_mutex_lock(&lock);		
-		client_socket = dequeue(client_queue);
+		pthread_mutex_lock(&lock);
+
+		if ((client_socket = dequeue(client_queue)) == 0) {
+			pthread_cond_wait(&thread_trigger, &lock);
+			client_socket = dequeue(client_queue);
+		}
+
 		pthread_mutex_unlock(&lock);
 	
 		if (client_socket == 0)
