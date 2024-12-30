@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.31)
 project(filethrough VERSION 0.1.0)
 
 add_executable(tft_client tft_client.c)
-add_executable(tft_server tft_server.c)
+add_executable(tft_server tft_server.c queue.c)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED true)
